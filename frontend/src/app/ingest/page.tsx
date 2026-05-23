@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useIngestRecipe, usePendingIngestJobs, useCurrentUser, useDismissIngestJob } from '@/lib/hooks';
 import { getIngestStatus, getIngestReview, confirmIngest, importRecipeFromUrl, ingestReceipt } from '@/lib/api';
 import { ReceiptReview } from '@/components/ReceiptReview';
-import type { IngestReviewPayload, ReceiptItem } from '@/lib/types';
+import type { IngestReviewPayload, IngestWarning, ReceiptItem } from '@/lib/types';
 import { ScanLine, FolderOpen, FileText, Upload, Bot, Loader2, Clock, Users, AlertTriangle, Wand2, CheckCircle, X } from 'lucide-react';
 import React from 'react';
 
@@ -818,6 +818,21 @@ export default function IngestPage() {
   // ---- Review step ----
   if (flowState === 'review' && reviewPayload) {
     const pr = reviewPayload.parsed_recipe;
+
+    // Stage-2 self-review warnings. Split into per-ingredient and recipe-level
+    // so we can decorate ingredient rows individually and surface global
+    // issues (nutrition, cooking_time, etc.) in a banner above the list.
+    const allWarnings: IngestWarning[] = reviewPayload.warnings ?? [];
+    const ingredientWarningByName = new Map<string, IngestWarning>();
+    const recipeLevelWarnings: IngestWarning[] = [];
+    for (const w of allWarnings) {
+      if (w.ingredient) {
+        ingredientWarningByName.set(w.ingredient.toLowerCase(), w);
+      } else {
+        recipeLevelWarnings.push(w);
+      }
+    }
+
     return (
       <main className="max-w-lg mx-auto px-4 pt-6 pb-4 space-y-5">
         <div className="flex items-center justify-between">
@@ -851,32 +866,75 @@ export default function IngestPage() {
           )}
         </div>
 
+        {/* Recipe-level warnings from Stage-2 self-review (nutrition, cooking_time, etc.) */}
+        {recipeLevelWarnings.length > 0 && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4" /> Possible extraction issues ({recipeLevelWarnings.length})
+            </h3>
+            <ul className="space-y-1.5">
+              {recipeLevelWarnings.map((w, i) => (
+                <li key={i} className="text-xs text-red-700 dark:text-red-400">
+                  <span className="font-medium">{w.field}:</span> {w.reason}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Ingredients */}
         {pr?.ingredients?.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Ingredients</h3>
             <ul className="space-y-1.5">
               {pr.ingredients.map((ing: any, i: number) => {
-                const isUnresolved = reviewPayload.unresolved_ingredients.includes(ing.raw_name ?? ing.name ?? '');
+                const name = ing.raw_name ?? ing.name ?? '';
+                const isUnresolved = reviewPayload.unresolved_ingredients.includes(name);
+                const warning = ingredientWarningByName.get(name.toLowerCase());
+                const hasWarning = !!warning;
                 return (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    {isUnresolved ? <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0" /> : <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
-                    <span className={isUnresolved ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-800 dark:text-gray-200'}>
-                      {ing.raw_name ?? ing.name}
-                    </span>
-                    {ing.quantity && (
-                      <span className="text-gray-400 dark:text-gray-500 text-xs ml-auto">
-                        {ing.quantity} {ing.unit ?? ''}
+                  <li key={i} className="text-sm">
+                    <div className="flex items-center gap-2">
+                      {hasWarning
+                        ? <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        : isUnresolved
+                          ? <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                          : <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                      <span className={
+                        hasWarning ? 'text-red-700 dark:text-red-400'
+                        : isUnresolved ? 'text-yellow-700 dark:text-yellow-400'
+                        : 'text-gray-800 dark:text-gray-200'
+                      }>
+                        {name}
                       </span>
+                      {ing.quantity && (
+                        <span className={`text-xs ml-auto ${hasWarning ? 'text-red-500 dark:text-red-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                          {ing.quantity} {ing.unit ?? ''}
+                        </span>
+                      )}
+                    </div>
+                    {hasWarning && (
+                      <p className="text-xs text-red-600 dark:text-red-400 ml-6 mt-0.5">
+                        {warning.reason}
+                      </p>
                     )}
                   </li>
                 );
               })}
             </ul>
-            {reviewPayload.unresolved_ingredients.length > 0 && (
-              <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-                <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {reviewPayload.unresolved_ingredients.length} ingredient(s) could not be automatically resolved</span>
-              </p>
+            {(reviewPayload.unresolved_ingredients.length > 0 || ingredientWarningByName.size > 0) && (
+              <div className="mt-2 space-y-1">
+                {reviewPayload.unresolved_ingredients.length > 0 && (
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                    <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {reviewPayload.unresolved_ingredients.length} ingredient(s) could not be automatically resolved</span>
+                  </p>
+                )}
+                {ingredientWarningByName.size > 0 && (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {ingredientWarningByName.size} ingredient(s) flagged for likely extraction error — please verify before saving</span>
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
