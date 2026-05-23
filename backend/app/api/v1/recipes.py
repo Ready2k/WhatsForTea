@@ -220,10 +220,20 @@ async def get_ingest_review(
         if caller and caller.is_admin:
             raw_llm_response = json.dumps(llm_out.raw_llm_response, indent=2)
 
+    # Stage-2 self-review warnings emitted by the ingestion LLM.
+    # Defensively filter to dicts that have the two required fields — the
+    # LLM occasionally returns malformed entries we don't want to surface.
+    raw_warnings = parsed.get("warnings") or []
+    warnings = [
+        w for w in raw_warnings
+        if isinstance(w, dict) and isinstance(w.get("field"), str) and isinstance(w.get("reason"), str)
+    ]
+
     return IngestReviewPayload(
         job_id=job_id,
         parsed_recipe=recipe_create,
         unresolved_ingredients=unresolved,
+        warnings=warnings,
         source_url=parsed.get("source_url"),
         raw_llm_response=raw_llm_response,
     )

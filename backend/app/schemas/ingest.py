@@ -1,11 +1,28 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
 from app.models.ingest import IngestSourceType, IngestStatus
 from app.schemas.recipe import RecipeCreate
+
+
+class IngestWarning(BaseModel):
+    """A single Stage-2 self-review warning emitted by the ingestion LLM.
+
+    Surfaces likely extraction errors (e.g. a 10x quantity inflation, a
+    misread decimal) to the user in the ingest review screen. The LLM
+    must not modify the underlying value — it only flags it here.
+    """
+    # raw_name of the ingredient the warning refers to; null for whole-recipe warnings
+    ingredient: Optional[str] = None
+    # one of: quantity | unit | servings_quantities.{2,3,4} | base_servings | ingredients | nutrition | cooking_time_mins
+    field: str
+    # the suspect value as the LLM saw it (number, string, dict, or null)
+    value: Optional[Any] = None
+    # one-sentence explanation, ideally naming the suspected real value
+    reason: str
 
 
 class IngestJobCreate(BaseModel):
@@ -40,6 +57,10 @@ class IngestReviewPayload(BaseModel):
     parsed_recipe: RecipeCreate
     # List of raw ingredient names that could not be auto-resolved
     unresolved_ingredients: list[str] = []
+    # Stage-2 self-review warnings emitted by the ingestion LLM; flags
+    # likely extraction errors (e.g. 10x quantity inflation) for the user
+    # to confirm or correct in the review screen.
+    warnings: list[IngestWarning] = []
     # Set for URL imports; null for image-scanned cards
     source_url: Optional[str] = None
     # Raw LLM response — only populated for household admins, null otherwise
