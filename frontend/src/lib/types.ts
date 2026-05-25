@@ -177,10 +177,22 @@ export interface IngestStatusResponse {
   error_message?: string;
 }
 
+export interface IngestWarning {
+  // raw_name of the ingredient the warning refers to; null for whole-recipe warnings
+  ingredient: string | null;
+  // one of: quantity | unit | servings_quantities.{2,3,4} | base_servings | ingredients | nutrition | cooking_time_mins
+  field: string;
+  // the suspect value as the LLM saw it
+  value: unknown;
+  // one-sentence explanation, ideally naming the suspected real value
+  reason: string;
+}
+
 export interface IngestReviewPayload {
   job_id: string;
   parsed_recipe: any;
   unresolved_ingredients: string[];
+  warnings?: IngestWarning[];
   source_url?: string | null;
   raw_llm_response?: string | null;
 }
