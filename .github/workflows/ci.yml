@@ -74,8 +74,9 @@ jobs:
 
       - name: Audit Python dependencies for CVEs
         run: |
+          pip install pip-audit
           cd backend
-          poetry run pip-audit --fix --dry-run
+          pip-audit -r <(poetry export --without-hashes --with dev)
 
       - name: Run migrations
         env:
