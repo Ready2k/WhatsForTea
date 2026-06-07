@@ -6,3 +6,7 @@ __pycache__/
 .coverage
 htmlcov/
 *.log
+
+# Never bake credentials into the image
+.env
+.env.*
