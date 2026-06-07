@@ -60,5 +60,8 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     app_url: str = "http://localhost:3000"
 
+    # Disable interactive API docs in production
+    enable_api_docs: bool = False
+
 
 settings = Settings()

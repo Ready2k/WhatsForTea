@@ -7,6 +7,18 @@ on:
     branches: [ main ]
 
 jobs:
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   backend:
     runs-on: ubuntu-latest
     services:
@@ -60,6 +72,11 @@ jobs:
           cd backend
           poetry run bandit -ll -r app
 
+      - name: Audit Python dependencies for CVEs
+        run: |
+          cd backend
+          poetry run pip-audit --fix --dry-run
+
       - name: Run migrations
         env:
           DATABASE_URL: postgresql+asyncpg://whatsfortea:password@localhost:5432/whatsfortea_test
@@ -99,6 +116,11 @@ jobs:
         run: |
           cd frontend
           npm ci
+
+      - name: Audit npm dependencies for CVEs
+        run: |
+          cd frontend
+          npm audit --audit-level=high
 
       - name: Lint with ESLint
         run: |

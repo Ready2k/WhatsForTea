@@ -129,8 +129,8 @@ app = FastAPI(
     title="WhatsForTea API",
     version="v2.1.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.enable_api_docs else None,
+    redoc_url="/redoc" if settings.enable_api_docs else None,
     redirect_slashes=False,
 )
 
