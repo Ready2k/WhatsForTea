@@ -23,7 +23,7 @@
     "react-markdown": "^8.0.7"
   },
   "devDependencies": {
-    "@copilotkit/aimock": "^1.15.1",
+    "@copilotkit/aimock": "^1.31.0",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
